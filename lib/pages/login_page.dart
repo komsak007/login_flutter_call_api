@@ -2,6 +2,9 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_login_api/ProgressHUD.dart';
+import 'package:flutter_login_api/api/api_service.dart';
+import 'package:flutter_login_api/model/login_model.dart';
 
 class LoginPage extends StatefulWidget {
   LoginPage({Key? key}) : super(key: key);
@@ -14,9 +17,28 @@ class _LoginPageState extends State<LoginPage> {
   final scaffoldKey = GlobalKey<ScaffoldState>();
   GlobalKey<FormState> globalFromKey = GlobalKey<FormState>();
   bool hidePassword = true;
+  LoginRequestModel? requestModel;
+  bool isApiCallProcess = false;
 
   @override
+  void initState() {
+    // TODO: implement initState
+    super.initState();
+    requestModel = LoginRequestModel();
+  }
+
+  @override
+  @override
   Widget build(BuildContext context) {
+    return ProgressHUD(
+      child: _uiSetup(context),
+      inAsyncCall: isApiCallProcess,
+      opacity: 0.3,
+    );
+  }
+
+  @override
+  Widget _uiSetup(BuildContext context) {
     return Scaffold(
       key: scaffoldKey,
       backgroundColor: Theme.of(context).accentColor,
@@ -54,6 +76,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         TextFormField(
                           keyboardType: TextInputType.emailAddress,
+                          onSaved: (input) => requestModel!.email = input,
                           validator: (input) => !input!.contains("@")
                               ? "Email Id should be Valid"
                               : null,
@@ -77,6 +100,7 @@ class _LoginPageState extends State<LoginPage> {
                         ),
                         TextFormField(
                           keyboardType: TextInputType.text,
+                          onSaved: (input) => requestModel!.password = input,
                           validator: (input) => input!.length < 3
                               ? "Password should be more than 3 characters"
                               : null,
@@ -92,7 +116,7 @@ class _LoginPageState extends State<LoginPage> {
                                   borderSide: BorderSide(
                                       color: Theme.of(context).accentColor)),
                               prefixIcon: Icon(
-                                Icons.email,
+                                Icons.lock,
                                 color: Theme.of(context).accentColor,
                               ),
                               suffixIcon: IconButton(
@@ -128,7 +152,33 @@ class _LoginPageState extends State<LoginPage> {
                         FlatButton(
                           padding: EdgeInsets.symmetric(
                               vertical: 12, horizontal: 80),
-                          onPressed: () {},
+                          onPressed: () {
+                            if (validateAndSave()) {
+                              setState(() {
+                                isApiCallProcess = true;
+                              });
+
+                              APIService apiService = APIService();
+                              apiService.login(requestModel!).then((value) {
+                                setState(() {
+                                  isApiCallProcess = false;
+                                });
+
+                                if (value.token!.isNotEmpty) {
+                                  final snackBar =
+                                      SnackBar(content: Text("Login Success"));
+                                  scaffoldKey.currentState!
+                                      .showSnackBar(snackBar);
+                                } else {
+                                  final snackBar =
+                                      SnackBar(content: Text("${value.error}"));
+                                  scaffoldKey.currentState!
+                                      .showSnackBar(snackBar);
+                                }
+                              });
+                              print(requestModel!.toJson());
+                            }
+                          },
                           child: Text(
                             "Login",
                             style: TextStyle(color: Colors.white),
@@ -146,5 +196,14 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
+  }
+
+  bool validateAndSave() {
+    final form = globalFromKey.currentState;
+    if (form!.validate()) {
+      form.save();
+      return true;
+    }
+    return false;
   }
 }
